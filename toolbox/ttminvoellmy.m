@@ -10,7 +10,8 @@ function [H,T] = ttminvoellmy(DEM,H,options)
 %
 %     This function provides a convenient interface to minvoellmy2d, a
 %     software and solver to simulate rock avalanches using Stefan 
-%     Hergarten's (2024) modified Voellmy rheology. 
+%     Hergarten's (2024) modified Voellmy rheology (see also here: 
+%     http://hergarten.at/minvoellmy/).
 %
 % Input arguments
 %
@@ -52,7 +53,7 @@ function [H,T] = ttminvoellmy(DEM,H,options)
 %                will be shown in a 3D surface plot where coloring
 %                indicates the thickness of the mobile layer.
 %     plotfreq   Frequency at which plots are created. The value should be
-%                higher than maxdt
+%                higher than maxdt.
 %     controls   True or false. If true, controls will be shown in a
 %                separate window.
 %     camorbit   Determines view angle (see function camorbit). 
@@ -60,18 +61,18 @@ function [H,T] = ttminvoellmy(DEM,H,options)
 %     clim       Color range. Default is [0 5].
 %     colormap   Default is flipud(ttscm('batlowW',255,[20 100]))
 %     video      true or false. If true, the function will write a gif or 
-%                mp4, depending on extension provided in filename
+%                mp4, depending on extension provided in filename. The
+%                frequency of new frames is given by plotfreq.
 %     videofile  name of the gif. Default is 'minvoellmy.mp4'
 %     position   four element vector indicating figure position. Note that
-%                if a gif is created, the figure is nonresizable.
+%                if a video/gif is created, the figure is nonresizable.
 %
 %     Output parameters
 %
 %     output     Create a table with times and intermediate results of the
-%                thickness of the mobile layer. The value gives the
-%                frequency at which data is created. Default is inf which
-%                means that no data is created. output = 10 means that
-%                every 10th timesteps, an output is generated.
+%                thickness of the mobile layer. The value corresponds to
+%                simulation time. output = 60, for example, means that
+%                every an output is generated every 60 s simulation time.
 %
 % Output arguments
 %
@@ -92,8 +93,7 @@ function [H,T] = ttminvoellmy(DEM,H,options)
 %
 % Author: Stefan Hergarten and 
 %         Wolfgang Schwanghart
-% Date: 1. May, 2025
-
+% Date: 26. June, 2025
 
 arguments
     DEM   % GRIDobj of DEM: All units must be in [m]
@@ -123,6 +123,7 @@ arguments
     options.output (1,1) {mustBeNumeric,mustBeNonnegative} = inf
     options.position (1,4) = [0.20 .1 .70 .80]
     options.camzoom (1,1) {mustBePositive} = 1
+    options.backgroundcolor = ttclrr('skyblue')
 
 end
 
@@ -205,7 +206,7 @@ if options.plot
         lastcamorbit = options.camorbit;
 
         axis off
-        fh.Color = ttclrr('skyblue');
+        fh.Color = options.backgroundcolor;
         material dull
 
         subplotlabel(gca,['t = ' num2str(0,'%6.2f') ' s'],'Location','southwest');
@@ -222,12 +223,10 @@ if options.plot
         end
 
         if options.controls
-
-        hslider = uislider(g,'Value',options.camorbit(1),'Limits',[0 360],...
+            hslider = uislider(g,'Value',options.camorbit(1),'Limits',[0 360],...
             'ValueChangingFcn',@(src,event,xr) setCamorbit());
         end
     
-
 else
     running = true;
     ispaused = false;
@@ -266,7 +265,7 @@ while counter <= options.maxsteps && t <= options.maxtime && running
         drawnow; 
     end
 
-    if options.video && mod(counter,10) == 0
+    if options.video && (counter == 1 || doplot)
         if writegif
             gif
         else
@@ -276,10 +275,11 @@ while counter <= options.maxsteps && t <= options.maxtime && running
     end
     
     if nargout == 2
-    if ~isinf(options.output) && ((mod(counter,options.output)) == 0)
-        H.Z = o.h;
-        T   = [T;table(t,H,'VariableNames',{'Time','H'})];
-    end
+        if ~isinf(options.output) && ...
+                mod(t,options.output) < mod(t-dt,options.output)
+            H.Z = o.h;
+            T   = [T;table(t,H,'VariableNames',{'Time','H'})];
+        end
     end
 
     % u = max(o.uh(:));
